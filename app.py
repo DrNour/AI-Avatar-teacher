@@ -37,13 +37,18 @@ if st.button("Get Feedback"):
             system_prompt = "You are a helpful teacher giving constructive feedback."
 
         # AI response
-        response = openai.ChatCompletion.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_input}
-            ]
-        )
+        from openai import OpenAI
+
+client = OpenAI()
+
+response = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[
+        {"role": "system", "content": "You are a helpful teacher."},
+        {"role": "user", "content": user_input}
+    ]
+)
+
         feedback = response["choices"][0]["message"]["content"]
 
         # Save in session history
@@ -62,3 +67,4 @@ if st.session_state.history:
         st.write("**AI Feedback:**", chat["feedback"])
         st.audio("feedback.mp3", format="audio/mp3")
         st.image(avatars[selected_avatar], caption="Your AI Teacher")
+
