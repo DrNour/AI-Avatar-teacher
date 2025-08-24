@@ -1,66 +1,53 @@
 import streamlit as st
-from gtts import gTTS
 from openai import OpenAI
-import os
+import base64
 
-# ---- CONFIG ----
-openai_api_key = "YOUR_API_KEY_HERE"  # Replace with your OpenAI API key
-client = OpenAI(api_key=openai_api_key)
+# Initialize OpenAI client
+client = OpenAI()
 
-# ---- STREAMLIT UI ----
-st.set_page_config(page_title="AI Avatar Teacher", layout="centered")
-st.title("🎓 AI Avatar Teacher (Free Demo)")
-st.write("Type your question or paste your work. Get instant feedback with voice and avatar!")
+# Streamlit app title
+st.set_page_config(page_title="AI Avatar Teacher", page_icon="🎓", layout="centered")
+st.title("🎓 AI Avatar Teacher")
 
-# ---- SESSION STATE FOR CHAT HISTORY ----
-if "history" not in st.session_state:
-    st.session_state.history = []
+# User input
+student_input = st.text_input("✏️ Enter your answer:")
 
-# ---- AVATAR OPTIONS ----
-avatars = {
-    "Friendly Teacher": "https://i.imgur.com/8Km9tLL.png",  # free avatar image
-    "Scientist": "https://i.imgur.com/jxWqIBf.png"
-}
-selected_avatar = st.selectbox("Choose your avatar:", avatars.keys())
-
-# ---- STUDENT INPUT ----
-user_input = st.text_area("Your question/answer:")
-
-# ---- GET FEEDBACK ----
 if st.button("Get Feedback"):
-    if user_input.strip() == "":
-        st.warning("Please enter something first.")
+    if student_input.strip() == "":
+        st.warning("Please enter your answer first.")
     else:
-        # System prompt based on avatar
-        if selected_avatar == "Scientist":
-            system_prompt = "You are a scientist explaining concepts clearly and kindly."
-        else:
-            system_prompt = "You are a helpful teacher giving constructive feedback."
+        # Generate feedback using GPT
+        with st.spinner("Thinking..."):
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are a friendly teacher giving constructive feedback."},
+                    {"role": "user", "content": student_input}
+                ]
+            )
 
-        # AI response using new OpenAI v1 API
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_input}
-            ]
-        )
+            feedback = response.choices[0].message.content
+            st.success("✅ Feedback received!")
 
-        feedback = response.choices[0].message.content
+            # Show teacher avatar
+            st.image(
+                "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+                caption="Your AI Teacher",
+                width=150
+            )
 
-        # Save in session history
-        st.session_state.history.append({"question": user_input, "feedback": feedback})
+            # Display feedback text
+            st.markdown(f"### 📢 Teacher says:\n{feedback}")
 
-        # Convert feedback to speech
-        tts = gTTS(feedback, lang="en")
-        audio_file = "feedback.mp3"
-        tts.save(audio_file)
+            # Convert feedback into speech
+            with st.spinner("Generating voice..."):
+                speech_response = client.audio.speech.create(
+                    model="gpt-4o-mini-tts",
+                    voice="alloy",
+                    input=feedback
+                )
 
-# ---- DISPLAY CHAT HISTORY ----
-if st.session_state.history:
-    for chat in st.session_state.history[::-1]:  # newest first
-        st.markdown("---")
-        st.write("**You:**", chat["question"])
-        st.write("**AI Feedback:**", chat["feedback"])
-        st.audio("feedback.mp3", format="audio/mp3")
-        st.image(avatars[selected_avatar], caption="Your AI Teacher")
+                audio_bytes = speech_response.read()
+                audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
+
+                st.audio(audio_bytes, format="audio/mp3")
